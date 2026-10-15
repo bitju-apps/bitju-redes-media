@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<meta name="referrer" content="no-referrer">
+<title>Bitju Publisher · TikTok</title>
+<style>
+  :root { --bg: #0e0a15; --card: #150f1f; --line: #2a2040; --fg: #eef6fb; --muted: #b9b2cc; --cyan: #00ffff; --ok: #2bd9a0; --err: #ff4f6d; }
+  * { box-sizing: border-box; }
+  body { margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 16px; background: var(--bg); color: var(--fg); font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  .card { max-width: 560px; width: 100%; background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 28px; display: flex; flex-direction: column; gap: 12px; }
+  h1 { margin: 0; font-size: 22px; }
+  p { color: var(--muted); margin: 0; }
+  code { display: block; padding: 14px; border-radius: 12px; background: #0b0712; border: 1px solid var(--line); color: var(--cyan); word-break: break-all; font-size: 14px; }
+  button { align-self: flex-start; border: 0; border-radius: 10px; padding: 12px 18px; background: var(--cyan); color: #0b0712; font: 700 15px system-ui, sans-serif; cursor: pointer; }
+  .ok { color: var(--ok); } .err { color: var(--err); }
+</style>
+</head>
+<body>
+<!-- Redirect URI única de "Bitju Publisher" en TikTok (Login Kit → Web): https://redes.bitju.app/oauth/tiktok/
+     El "state" dice a quién le corresponde la autorización:
+       pub.<azar>          → la herramienta web de la demo: reenvía a /publisher/api/callback (mismo sitio).
+       cli.<puerto>.<azar> → el script local scripts/social/tiktok-oauth.mjs: reenvía el código a
+                             http://127.0.0.1:<puerto>/ (el script lo canjea en tu máquina). Si eso no anda,
+                             muestra el código para pegarlo en la terminal.
+     Esta página no guarda ni envía nada a ningún servidor: el código vence en minutos y solo sirve junto con
+     el client secret. -->
+<main class="card" id="c"><p>Connecting…</p></main>
+<script>
+  const q = new URLSearchParams(location.search);
+  const c = document.getElementById("c");
+  const state = q.get("state") || "";
+  const esc = (s) => String(s).replace(/[&<>"]/g, (x) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[x]));
+  const yaIntentado = (() => { try { const k = "tt:" + state; const v = sessionStorage.getItem(k); sessionStorage.setItem(k, "1"); return v === "1"; } catch { return false; } })();
+
+  if (state.startsWith("pub.")) {
+    // Demo: el servidor de la herramienta valida el state con su cookie y canjea el código.
+    location.replace("/publisher/api/callback" + location.search);
+  } else if (q.get("error")) {
+    c.innerHTML = `<h1 class="err">TikTok no autorizó la conexión</h1><p>${esc(q.get("error_description") || q.get("error"))}</p><p>Vuelve a la terminal y corre el script de nuevo.</p>`;
+  } else if (q.get("code")) {
+    const code = q.get("code");
+    const m = /^cli\.(\d{4,5})\./.exec(state);
+    if (m && !yaIntentado) {
+      // Reenvío automático al script que está esperando en tu computadora.
+      location.replace(`http://127.0.0.1:${m[1]}/?${new URLSearchParams({ code, state })}`);
+    } else {
+      c.innerHTML = `<h1>Copia este código en la terminal</h1><p>Estado: <b>${esc(state)}</b> (tiene que coincidir con el que muestra el script).</p><code id="code">${esc(code)}</code><button id="b">Copiar código</button><p>Vence en unos minutos. No lo compartas ni lo pegues en ningún chat.</p>`;
+      document.getElementById("b").onclick = async (e) => {
+        try { await navigator.clipboard.writeText(code); e.target.textContent = "Copiado ✓"; }
+        catch { const r = document.createRange(); r.selectNodeContents(document.getElementById("code")); getSelection().removeAllRanges(); getSelection().addRange(r); e.target.textContent = "Seleccionado: Ctrl+C"; }
+      };
+    }
+  } else {
+    c.innerHTML = `<h1>Bitju Publisher</h1><p>This page receives TikTok's authorization for Bitju Publisher and hands it back to the tool that asked for it.</p>`;
+  }
+</script>
+</body>
+</html>
